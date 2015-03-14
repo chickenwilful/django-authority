@@ -34,13 +34,14 @@ class PermissionInline(generic.GenericTabularInline):
             perm_choices = get_choices_for(self.parent_model)
             kwargs['label'] = _('permission')
             kwargs['widget'] = forms.Select(choices=perm_choices)
+            return db_field.formfield(**kwargs)
         return super(PermissionInline, self).formfield_for_dbfield(db_field, **kwargs)
 
 class ActionPermissionInline(PermissionInline):
     raw_id_fields = ()
     template = 'admin/edit_inline/action_tabular.html'
 
-class ActionErrorList(forms.util.ErrorList):
+class ActionErrorList(forms.utils.ErrorList):
     def __init__(self, inline_formsets):
         for inline_formset in inline_formsets:
             self.extend(inline_formset.non_form_errors())
@@ -65,7 +66,7 @@ def edit_permissions(modeladmin, request, queryset):
         prefix = "%s-%s" % (FormSet.get_default_prefix(), obj.pk)
         prefixes[prefix] = prefixes.get(prefix, 0) + 1
         if prefixes[prefix] != 1:
-            prefix = "%s-%s" % (prefix, prefixes[prefix])
+            prefix = "%s-%s-%s" % (prefix, prefixes[prefix])
         if request.POST.get('post'):
             formset = FormSet(data=request.POST, files=request.FILES,
                               instance=obj, prefix=prefix)
@@ -86,10 +87,6 @@ def edit_permissions(modeladmin, request, queryset):
         if all_valid(formsets):
             for formset in formsets:
                 formset.save()
-        else:
-            modeladmin.message_user(request, '; '.join(
-                err.as_text() for formset in formsets for err in formset.errors
-            ))
         # redirect to full request path to make sure we keep filter
         return HttpResponseRedirect(request.get_full_path())
 
@@ -140,9 +137,9 @@ class PermissionAdmin(admin.ModelAdmin):
         if db_field.name in [f.fk_field for f in self.model._meta.virtual_fields if f.name in self.generic_fields]:
             for gfk in self.model._meta.virtual_fields:
                 if gfk.fk_field == db_field.name:
-                    kwargs['widget'] = GenericForeignKeyRawIdWidget(
-                        gfk.ct_field, self.admin_site._registry.keys())
-                    break
+                    return db_field.formfield(
+                        widget=GenericForeignKeyRawIdWidget(
+                            gfk.ct_field, self.admin_site._registry.keys()))
         return super(PermissionAdmin, self).formfield_for_dbfield(db_field, **kwargs)
 
     def queryset(self, request):
